@@ -7,6 +7,10 @@
 require('./bootstrap');
 
 window.Vue = require('vue');
+import Vue from 'vue';
+import VueChatScroll from "vue-chat-scroll/dist/vue-chat-scroll";
+
+Vue.use(VueChatScroll);
 
 /**
  * The following block of code may be used to automatically register your
@@ -19,7 +23,8 @@ window.Vue = require('vue');
 // const files = require.context('./', true, /\.vue$/i)
 // files.keys().map(key => Vue.component(key.split('/').pop().split('.')[0], files(key).default))
 
-Vue.component('example-component', require('./components/ExampleComponent.vue').default);
+Vue.component('message', require('./components/message.vue').default);
+
 
 /**
  * Next, we will create a fresh Vue application instance and attach it to
@@ -29,4 +34,66 @@ Vue.component('example-component', require('./components/ExampleComponent.vue').
 
 const app = new Vue({
     el: '#app',
+    data: {
+        message: '',
+        chat: {
+            message: [],
+            color: [],
+            user: [],
+            time: []
+        },
+        typing: ''
+    },
+    watch: {
+        message() {
+            Echo.private('chat')
+                .whisper('typing', {
+                    text: this.message
+                });
+        }
+    },
+    methods: {
+        send() {
+            if (this.message.length > 0) {
+                this.chat.message.push(this.message);
+                this.chat.user.push('You');
+                this.chat.color.push('success');
+                this.chat.time.push(this.getTime());
+
+                axios.post('/send', {
+                    message: this.message
+                })
+                .then(response => {
+                    this.message = '';
+                    console.log(response);
+                })
+                .catch(error => {
+                    console.log(error);
+                });
+            }
+        },
+        getTime() {
+            let time = new Date();
+
+            return time.getHours() + ':' + time.getMinutes()
+        }
+    },
+    mounted() {
+        Echo.private('chat')
+        .listen('ChatEvent', (e) => {
+            this.chat.message.push(e.message);
+            this.chat.user.push(e.user);
+            this.chat.color.push('warning');
+            this.chat.time.push(this.getTime());
+        })
+        .listenForWhisper('typing', (e) => {
+            if (e.text !== '') {
+                this.typing = 'typing';
+            } else {
+                this.typing = '';
+            }
+        });
+    }
 });
+
+export default app;
