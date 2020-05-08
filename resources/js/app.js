@@ -9,7 +9,15 @@ require('./bootstrap');
 window.Vue = require('vue');
 import Vue from 'vue';
 import VueChatScroll from "vue-chat-scroll/dist/vue-chat-scroll";
+import Toaster from 'v-toaster';
 
+// You need a specific loader for CSS files like https://github.com/webpack/css-loader
+import 'v-toaster/dist/v-toaster.css'
+
+// optional set default timeout, the default is 10000 (10 seconds).
+Vue.use(Toaster, {timeout: 5000})
+
+// For auto scrolling chat messages
 Vue.use(VueChatScroll);
 
 /**
@@ -24,7 +32,6 @@ Vue.use(VueChatScroll);
 // files.keys().map(key => Vue.component(key.split('/').pop().split('.')[0], files(key).default))
 
 Vue.component('message', require('./components/message.vue').default);
-
 
 /**
  * Next, we will create a fresh Vue application instance and attach it to
@@ -42,7 +49,8 @@ const app = new Vue({
             user: [],
             time: []
         },
-        typing: ''
+        typing: '',
+        numberOfUsers: 0
     },
     watch: {
         message() {
@@ -61,11 +69,11 @@ const app = new Vue({
                 this.chat.time.push(this.getTime());
 
                 axios.post('/send', {
-                    message: this.message
+                    message: this.message,
+                    chat: this.chat
                 })
                 .then(response => {
                     this.message = '';
-                    console.log(response);
                 })
                 .catch(error => {
                     console.log(error);
@@ -76,15 +84,42 @@ const app = new Vue({
             let time = new Date();
 
             return time.getHours() + ':' + time.getMinutes()
+        },
+        getOldMessages() {
+            axios.post('/getOldMessage')
+            .then(response => {
+                if (response.data !== '') {
+                    this.chat = response.data;
+                }
+            })
+            .catch(error => {
+                console.log(error);
+            });
+        },
+        deleteSession() {
+            axios.post('/deleteSession')
+                .then(() => {
+                    this.$toaster.success('Chat history is deleted.');
+                    this.chat.message = [];
+                });
         }
     },
     mounted() {
+        this.getOldMessages();
+
         Echo.private('chat')
         .listen('ChatEvent', (e) => {
             this.chat.message.push(e.message);
             this.chat.user.push(e.user);
             this.chat.color.push('warning');
             this.chat.time.push(this.getTime());
+
+            axios.post('/saveToSession', {
+                chat: this.chat
+            })
+            .catch(error => {
+                console.log(error);
+            });
         })
         .listenForWhisper('typing', (e) => {
             if (e.text !== '') {
@@ -93,6 +128,19 @@ const app = new Vue({
                 this.typing = '';
             }
         });
+
+        Echo.join('chat')
+            .here((users) => {
+                this.numberOfUsers = users.length;
+            })
+            .joining((user) => {
+                this.$toaster.success(user.name + ' is joined the chat room.');
+                this.numberOfUsers += 1;
+            })
+            .leaving((user) => {
+                this.$toaster.success(user.name + ' is leaved the chat room.');
+                this.numberOfUsers -= 1;
+            });
     }
 });
 

@@ -28,6 +28,7 @@
         "laravel-echo": "^1.7.0",
         "pusher-js": "^6.0.2",
         "socket.io-client": "^2.3.0",
+        "v-toaster": "^1.0.3",
         "vue-chat-scroll": "^1.4.0"
     }
 }
